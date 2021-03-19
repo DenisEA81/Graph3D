@@ -3,6 +3,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Threading;
 
 namespace Graph3DLibrary
 {
@@ -194,21 +195,21 @@ namespace Graph3DLibrary
         /// </summary>
         /// <param name="drawSurface">Поверхность для рисования</param>
         /// <returns>0 - успешно, не 0 - ошибка</returns>
-        public int ShowPolygonModel(Graphics drawSurface, PolygonSides drawingSide = PolygonSides.AllSides)
+        public int ShowPolygonModel(IDrawingSurface surface, PolygonSides drawingSide = PolygonSides.AllSides)
         {
             try
             {
                 if (collection.Length == 1)
                 {
                     if (collection[0] != null)
-                        if (collection[0].ShowPolygonModel(drawSurface, drawingSide) != 0) throw new Exception(ErrorLog.GetLastError());
+                        if (collection[0].ShowPolygonModel(surface, drawingSide) != 0) throw new Exception(ErrorLog.GetLastError());
                 }
                 else
                 {
                     if (drawingSide == PolygonSides.Auto)
                     {
-                        if (ShowPolygonModel(drawSurface, PolygonSides.RearSide) != 0) throw new Exception(Graph3DLibrary.ErrorLog.GetLastError());
-                        if (ShowPolygonModel(drawSurface, PolygonSides.FrontSide) != 0) throw new Exception(Graph3DLibrary.ErrorLog.GetLastError());
+                        if (ShowPolygonModel(surface, PolygonSides.RearSide) != 0) throw new Exception(Graph3DLibrary.ErrorLog.GetLastError());
+                        if (ShowPolygonModel(surface, PolygonSides.FrontSide) != 0) throw new Exception(Graph3DLibrary.ErrorLog.GetLastError());
                     }
                     else
                     {
@@ -216,25 +217,29 @@ namespace Graph3DLibrary
                         PointF[] poly = new PointF[3] { new PointF(), new PointF(), new PointF() };
                         int sideIdx;
 
-                        for (int i = 0; i < ActivePolygonCount; i++)
-                            if (collection[ActivePolygon[i].ModelIndex] != null)
-                            {
-                                sideIdx = (collection[ActivePolygon[i].ModelIndex].Polygon[ActivePolygon[i].PolygonIndex].NormalZ <= 0) ? 0 : 1;
-
-
-                                if (drawingSide != PolygonSides.AllSides)
+                        int PolygonPartSize = ActivePolygonCount / surface.BufferCount;
+                        Parallel.For(0, surface.BufferCount, (int partIndex) =>
+                        {
+                            for (int i = partIndex * PolygonPartSize; (i < ActivePolygonCount) && (i < (partIndex + 1) * PolygonPartSize); i++)
+                                if (collection[ActivePolygon[i].ModelIndex] != null)
                                 {
-                                    if ((drawingSide == PolygonSides.FrontSide) & (sideIdx == 1)) continue;
-                                    if ((drawingSide == PolygonSides.RearSide) & (sideIdx == 0)) continue;
+                                    sideIdx = (collection[ActivePolygon[i].ModelIndex].Polygon[ActivePolygon[i].PolygonIndex].NormalZ <= 0) ? 0 : 1;
+
+
+                                    if (drawingSide != PolygonSides.AllSides)
+                                    {
+                                        if ((drawingSide == PolygonSides.FrontSide) & (sideIdx == 1)) continue;
+                                        if ((drawingSide == PolygonSides.RearSide) & (sideIdx == 0)) continue;
+                                    }
+
+                                    if (Engine3D.BuiltStaticPolygon(ref collection[ActivePolygon[i].ModelIndex].ScreenVertex3D, ref collection[ActivePolygon[i].ModelIndex].Polygon[ActivePolygon[i].PolygonIndex], ref poly) != 0) throw new Exception(Graph3DLibrary.ErrorLog.GetLastError());
+
+
+                                    ((SolidBrush)brush).Color = collection[ActivePolygon[i].ModelIndex].Polygon[ActivePolygon[i].PolygonIndex].LightingColor[sideIdx];
+
+                                    surface.FillPolygon(brush, poly,partIndex);
                                 }
-
-                                if (Engine3D.BuiltStaticPolygon(ref collection[ActivePolygon[i].ModelIndex].ScreenVertex3D, ref collection[ActivePolygon[i].ModelIndex].Polygon[ActivePolygon[i].PolygonIndex], ref poly) != 0) throw new Exception(Graph3DLibrary.ErrorLog.GetLastError());
-
-
-                                ((SolidBrush)brush).Color = collection[ActivePolygon[i].ModelIndex].Polygon[ActivePolygon[i].PolygonIndex].LightingColor[sideIdx];
-
-                                drawSurface.FillPolygon(brush, poly);
-                            }
+                        });
                         brush.Dispose();
                     }
                 }
@@ -253,7 +258,7 @@ namespace Graph3DLibrary
         /// <param name="drawSurface"></param>
         /// <param name="drawingSide"></param>
         /// <returns></returns>
-        public int ShowWideModel(Graphics drawSurface, PolygonSides drawingSide = PolygonSides.AllSides)
+        public int ShowWideModel(IDrawingSurface surface, PolygonSides drawingSide = PolygonSides.AllSides)
         {
             try
             {
@@ -261,14 +266,14 @@ namespace Graph3DLibrary
                 if (collection.Length == 1)
                 {
                     if (collection[0]!=null)
-                        if (collection[0].ShowPolygonWideModel(drawSurface, drawingSide) != 0) throw new Exception(ErrorLog.GetLastError());
+                        if (collection[0].ShowPolygonWideModel(surface, drawingSide) != 0) throw new Exception(ErrorLog.GetLastError());
                 }
                 else
                 {
                     if (drawingSide == PolygonSides.Auto)
                     {
-                        if (ShowWideModel(drawSurface, PolygonSides.RearSide) != 0) throw new Exception(Graph3DLibrary.ErrorLog.GetLastError());
-                        if (ShowWideModel(drawSurface, PolygonSides.FrontSide) != 0) throw new Exception(Graph3DLibrary.ErrorLog.GetLastError());
+                        if (ShowWideModel(surface, PolygonSides.RearSide) != 0) throw new Exception(Graph3DLibrary.ErrorLog.GetLastError());
+                        if (ShowWideModel(surface, PolygonSides.FrontSide) != 0) throw new Exception(Graph3DLibrary.ErrorLog.GetLastError());
                     }
                     else
                     {
@@ -276,23 +281,27 @@ namespace Graph3DLibrary
                         PointF[] poly = new PointF[3] { new PointF(), new PointF(), new PointF() };
                         int sideIdx;
 
-                        for (int i = 0; i < ActivePolygonCount; i++)
+                        int PolygonPartSize = ActivePolygonCount / surface.BufferCount;
+                        Parallel.For(0, surface.BufferCount, (int partIndex) =>
+                          {
+                            for(int i=partIndex*PolygonPartSize; (i < ActivePolygonCount)&&(i<(partIndex+1)*PolygonPartSize); i++)
                             if (collection[ActivePolygon[i].ModelIndex] != null)
-                            {
-                                sideIdx = (collection[ActivePolygon[i].ModelIndex].Polygon[ActivePolygon[i].PolygonIndex].NormalZ <= 0) ? 0 : 1;
+                              {
+                                  sideIdx = (collection[ActivePolygon[i].ModelIndex].Polygon[ActivePolygon[i].PolygonIndex].NormalZ <= 0) ? 0 : 1;
 
-                                if (drawingSide != PolygonSides.AllSides)
-                                {
-                                    if ((drawingSide == PolygonSides.FrontSide) & (sideIdx == 1)) continue;
-                                    if ((drawingSide == PolygonSides.RearSide) & (sideIdx == 0)) continue;
-                                }
+                                  if (drawingSide != PolygonSides.AllSides)
+                                  {
+                                      if ((drawingSide == PolygonSides.FrontSide) & (sideIdx == 1)) continue;
+                                      if ((drawingSide == PolygonSides.RearSide) & (sideIdx == 0)) continue;
+                                  }
 
-                                if (Engine3D.BuiltStaticPolygon(ref collection[ActivePolygon[i].ModelIndex].ScreenVertex3D, ref collection[ActivePolygon[i].ModelIndex].Polygon[ActivePolygon[i].PolygonIndex], ref poly) != 0) throw new Exception(Graph3DLibrary.ErrorLog.GetLastError());
+                                  if (Engine3D.BuiltStaticPolygon(ref collection[ActivePolygon[i].ModelIndex].ScreenVertex3D, ref collection[ActivePolygon[i].ModelIndex].Polygon[ActivePolygon[i].PolygonIndex], ref poly) != 0) throw new Exception(Graph3DLibrary.ErrorLog.GetLastError());
 
-                                pen.Color = collection[ActivePolygon[i].ModelIndex].Polygon[ActivePolygon[i].PolygonIndex].LightingColor[sideIdx];
+                                  pen.Color = collection[ActivePolygon[i].ModelIndex].Polygon[ActivePolygon[i].PolygonIndex].LightingColor[sideIdx];
 
-                                drawSurface.DrawPolygon(pen, poly);
-                            }
+                                  surface.DrawPolygon(pen, poly,partIndex);
+                              }
+                          });
                         pen.Dispose();
                     }
                 }
@@ -313,56 +322,60 @@ namespace Graph3DLibrary
         /// <param name="drawSurface"></param>
         /// <param name="drawingSide"></param>
         /// <returns></returns>
-        public int ShowModel(Graphics drawSurface, PolygonSides drawingSide = PolygonSides.AllSides)
+        public int ShowModel(IDrawingSurface surface, PolygonSides drawingSide = PolygonSides.AllSides)
         {
             try
             {
                 if (collection.Length == 1)
                 {
                     if (collection[0] != null)
-                        if (collection[0].ShowModel(drawSurface, drawingSide) != 0) throw new Exception(ErrorLog.GetLastError());
+                        if (collection[0].ShowModel(surface, drawingSide) != 0) throw new Exception(ErrorLog.GetLastError());
                 }
                 else
                 {
                     if (drawingSide == PolygonSides.Auto)
                     {
-                        if (ShowModel(drawSurface, PolygonSides.RearSide) != 0) throw new Exception(Graph3DLibrary.ErrorLog.GetLastError());
-                        if (ShowModel(drawSurface, PolygonSides.FrontSide) != 0) throw new Exception(Graph3DLibrary.ErrorLog.GetLastError());
+                        if (ShowModel(surface, PolygonSides.RearSide) != 0) throw new Exception(Graph3DLibrary.ErrorLog.GetLastError());
+                        if (ShowModel(surface, PolygonSides.FrontSide) != 0) throw new Exception(Graph3DLibrary.ErrorLog.GetLastError());
                     }
                     else
                     {
-                        Pen pen = new Pen(Color.White);
-                        SolidBrush brush = new SolidBrush(Color.White);
+                        int PolygonPartSize = ActivePolygonCount / surface.BufferCount;
+                        Parallel.For(0, surface.BufferCount, (int partIndex) =>
+                        {
+                            int sideIdx;
+                            Pen pen = new Pen(Color.White);
+                            SolidBrush brush = new SolidBrush(Color.White);
 
-                        PointF[] poly = new PointF[3] { new PointF(), new PointF(), new PointF() };
-                        int sideIdx;
+                            PointF[] poly = new PointF[3] { new PointF(), new PointF(), new PointF() };
 
-                        for (int i = 0; i < ActivePolygonCount; i++)
-                            if (collection[ActivePolygon[i].ModelIndex] != null)
-                            {
-                                sideIdx = (collection[ActivePolygon[i].ModelIndex].Polygon[ActivePolygon[i].PolygonIndex].NormalZ <= 0) ? 0 : 1;
-
-                                if (drawingSide != PolygonSides.AllSides)
+                            for (int i = partIndex * PolygonPartSize; (i < ActivePolygonCount) && (i < (partIndex + 1) * PolygonPartSize); i++)
+                                if (collection[ActivePolygon[i].ModelIndex] != null)
                                 {
-                                    if ((drawingSide == PolygonSides.FrontSide) & (sideIdx == 1)) continue;
-                                    if ((drawingSide == PolygonSides.RearSide) & (sideIdx == 0)) continue;
-                                }
+                                    sideIdx = (collection[ActivePolygon[i].ModelIndex].Polygon[ActivePolygon[i].PolygonIndex].NormalZ <= 0) ? 0 : 1;
 
-                                if (Engine3D.BuiltStaticPolygon(ref collection[ActivePolygon[i].ModelIndex].ScreenVertex3D, ref collection[ActivePolygon[i].ModelIndex].Polygon[ActivePolygon[i].PolygonIndex], ref poly) != 0) throw new Exception(Graph3DLibrary.ErrorLog.GetLastError());
+                                    if (drawingSide != PolygonSides.AllSides)
+                                    {
+                                        if ((drawingSide == PolygonSides.FrontSide) & (sideIdx == 1)) continue;
+                                        if ((drawingSide == PolygonSides.RearSide) & (sideIdx == 0)) continue;
+                                    }
 
-                                switch (collection[ActivePolygon[i].ModelIndex].Polygon[ActivePolygon[i].PolygonIndex].FillType)
-                                {
-                                    case PolygonFillType.Solid:
-                                        brush.Color = collection[ActivePolygon[i].ModelIndex].Polygon[ActivePolygon[i].PolygonIndex].LightingColor[sideIdx];
-                                        drawSurface.FillPolygon(brush, poly);
-                                        break;
-                                    case PolygonFillType.Wide:
-                                        pen.Color = collection[ActivePolygon[i].ModelIndex].Polygon[ActivePolygon[i].PolygonIndex].LightingColor[sideIdx];
-                                        drawSurface.DrawPolygon(pen, poly);
-                                        break;
+                                    if (Engine3D.BuiltStaticPolygon(ref collection[ActivePolygon[i].ModelIndex].ScreenVertex3D, ref collection[ActivePolygon[i].ModelIndex].Polygon[ActivePolygon[i].PolygonIndex], ref poly) != 0) throw new Exception(Graph3DLibrary.ErrorLog.GetLastError());
+
+                                    switch (collection[ActivePolygon[i].ModelIndex].Polygon[ActivePolygon[i].PolygonIndex].FillType)
+                                    {
+                                        case PolygonFillType.Solid:
+                                            brush.Color = collection[ActivePolygon[i].ModelIndex].Polygon[ActivePolygon[i].PolygonIndex].LightingColor[sideIdx];
+                                            surface.FillPolygon(brush, poly,partIndex);
+                                            break;
+                                        case PolygonFillType.Wide:
+                                            pen.Color = collection[ActivePolygon[i].ModelIndex].Polygon[ActivePolygon[i].PolygonIndex].LightingColor[sideIdx];
+                                            surface.DrawPolygon(pen, poly,partIndex);
+                                            break;
+                                    }
                                 }
-                            }
-                        pen.Dispose();
+                            pen.Dispose();
+                        });
                     }
                 }
                 return 0;
